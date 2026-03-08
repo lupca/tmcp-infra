@@ -1,0 +1,48 @@
+#cloud-config
+package_update: true
+package_upgrade: true
+
+packages:
+  - curl
+  - jq
+  - ufw
+  - fail2ban
+
+# Cấp quyền cho user ubuntu và nhét SSH Public Key của Terraform vào
+users:
+  - default
+  - name: ubuntu
+    ssh_authorized_keys:
+      - ${ssh_public_key}
+    sudo: ALL=(ALL) NOPASSWD:ALL
+
+write_files:
+  - path: /etc/fail2ban/jail.local
+    content: |
+      [sshd]
+      enabled = true
+      port = 22
+      filter = sshd
+      logpath = /var/log/auth.log
+      maxretry = 3
+      bantime = 3600
+
+runcmd:
+  - echo "Bảo mật SSH..."
+  - sed -i 's/^#*PermitRootLogin.*/PermitRootLogin no/g' /etc/ssh/sshd_config
+  - sed -i 's/^#*PasswordAuthentication.*/PasswordAuthentication no/g' /etc/ssh/sshd_config
+  - systemctl restart sshd
+
+  - echo "Thiết lập tường lửa UFW..."
+  - ufw default deny incoming
+  - ufw default allow outgoing
+  - ufw allow 22/tcp
+  - ufw allow 80/tcp
+  - ufw allow 443/tcp
+  - ufw allow 6443/tcp
+  - ufw allow from 10.42.0.0/16 to any
+  - ufw --force enable
+
+  - echo "Bật Fail2Ban..."
+  - systemctl enable fail2ban
+  - systemctl start fail2ban

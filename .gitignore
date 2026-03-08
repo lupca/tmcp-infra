@@ -1,0 +1,110 @@
+# ==================================
+# Terraform
+# ==================================
+# Local .terraform directories
+**/.terraform/
+
+# Terraform state files - CHỨA SECRETS!
+*.tfstate
+*.tfstate.*
+
+# Crash log files
+crash.log
+crash.*.log
+
+# Terraform variable files (may contain secrets)
+*.tfvars
+*.tfvars.json
+
+# Override files
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# Terraform lock file (optional - có thể bỏ comment nếu cần)
+# .terraform.lock.hcl
+
+# ==================================
+# SSH Keys - TUYỆT ĐỐI KHÔNG COMMIT!
+# ==================================
+*.pem
+*_rsa
+*_rsa.pub
+*.key
+id_rsa*
+id_ed25519*
+id_ecdsa*
+id_dsa*
+tmcp_rsa*
+
+# ==================================
+# Vault & Secrets - TUYỆT ĐỐI KHÔNG COMMIT!
+# ==================================
+*_vault_keys.txt
+*vault*.txt
+*.secret
+*.secrets
+.env
+.env.*
+*.env
+
+# ==================================
+# Kubernetes
+# ==================================
+kubeconfig
+kubeconfig.*
+*.kubeconfig
+.kube/
+
+# ==================================
+# Cloud Provider Credentials
+# ==================================
+# AWS
+.aws/
+credentials
+*.pem
+
+# GCP
+*.json
+!package.json
+!tsconfig.json
+
+# Azure
+.azure/
+
+# ==================================
+# OS Generated
+# ==================================
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+Thumbs.db
+desktop.ini
+
+# ==================================
+# IDE & Editor
+# ==================================
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.project
+.settings/
+
+# ==================================
+# Logs
+# ==================================
+*.log
+logs/
+
+# ==================================
+# Backup files
+# ==================================
+*.bak
+*.backup
+*.old
+*.orig

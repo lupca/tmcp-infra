@@ -1,0 +1,42 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: pb-data-pvc
+spec:
+  accessModes: [ReadWriteOnce]
+  resources: { requests: { storage: 1Gi } }
+
+---
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pocketbase
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: pocketbase }
+  template:
+    metadata: { labels: { app: pocketbase } }
+    spec:
+      containers:
+      - name: pb
+        image: lupca/tmcp-dashboard:v0.0.18
+        ports: [{ containerPort: 8090 }]
+        volumeMounts:
+        - name: data
+          mountPath: /pb/pb_data
+      volumes:
+      - name: data
+        persistentVolumeClaim: { claimName: pb-data-pvc }
+
+---
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: pb-service
+spec:
+  selector: { app: pocketbase }
+  ports: [{ port: 80, targetPort: 8090 }]
+
