@@ -38,8 +38,8 @@ VM_NAME="tmcp-server"
 
 ensure_multipass
 
-echo "1. Đang tạo máy ảo Multipass (2 Core, 4GB RAM, 20GB Disk)..."
-multipass launch -n $VM_NAME -c 2 -m 4G -d 20G 24.04
+echo "1. Đang tạo máy ảo Multipass (2 Core, 6GB RAM, 20GB Disk)..."
+multipass launch -n $VM_NAME -c 2 -m 6G -d 20G 24.04
 
 echo "2. Đang cài đặt K3s lên máy ảo..."
 multipass exec $VM_NAME -- bash -c "curl -sfL https://get.k3s.io | sh -"
