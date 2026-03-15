@@ -12,6 +12,14 @@ terraform {
       source  = "hashicorp/local"
       version = "~> 2.4.0"
     }
+    null = {
+      source  = "hashicorp/null"
+      version = "~> 3.2.0"
+    }
+    random = {
+      source  = "hashicorp/random"
+      version = "~> 3.6.0"
+    }
   }
 }
 
@@ -223,6 +231,27 @@ resource "null_resource" "vault_unsealer" {
 }
 
 # ==========================================
+# 6.5. TỰ ĐỘNG SEED SECRETS VÀO VAULT
+# ==========================================
+resource "null_resource" "seed_vault_secrets" {
+  depends_on = [null_resource.vault_unsealer]
+
+  provisioner "local-exec" {
+    command = "${path.module}/seed-vault.sh"
+    environment = {
+      POCKETBASE_PASSWORD       = var.pocketbase_password
+      GOOGLE_API_KEY            = var.google_api_key
+      LANGSMITH_API_KEY         = var.langsmith_api_key
+      DISCORD_WEBHOOK_URL       = var.discord_webhook_url
+      PB_ADMIN_PASSWORD         = var.pb_admin_password
+      KIBANA_SAVED_OBJECTS_KEY  = var.kibana_saved_objects_key
+      KIBANA_REPORTING_KEY      = var.kibana_reporting_key
+      KIBANA_SECURITY_KEY       = var.kibana_security_key
+    }
+  }
+}
+
+# ==========================================
 # 7. GIAI ĐOẠN 2: THẢ WORKLOADS (ROOT APP)
 # ==========================================
 resource "local_file" "argocd_root_app" {
@@ -252,7 +281,7 @@ EOF
 }
 
 resource "null_resource" "trigger_workloads" {
-  depends_on = [null_resource.vault_unsealer, local_file.argocd_root_app]
+  depends_on = [null_resource.seed_vault_secrets, local_file.argocd_root_app]
 
   provisioner "local-exec" {
     command = <<EOT

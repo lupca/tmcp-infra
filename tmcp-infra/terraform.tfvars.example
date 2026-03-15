@@ -1,0 +1,25 @@
+# ==========================================
+# TMCP VAULT SECRETS - TEMPLATE
+# ==========================================
+# Copy file này thành terraform.tfvars và điền giá trị thật:
+#   cp terraform.tfvars.example terraform.tfvars
+#
+# ⚠️  KHÔNG COMMIT terraform.tfvars vào Git!
+
+# --- Bridge & Agent: PocketBase ---
+pocketbase_password = "1234567890"
+
+# --- Agent: AI Keys ---
+google_api_key    = "YOUR_GOOGLE_API_KEY"
+langsmith_api_key = "YOUR_LANGSMITH_API_KEY"
+
+# --- AIOps Agent: Discord ---
+discord_webhook_url = "https://discord.com/api/webhooks/YOUR_WEBHOOK_ID/YOUR_WEBHOOK_TOKEN"
+
+# --- Kibana: Encryption Keys (để trống = tự sinh random) ---
+# kibana_saved_objects_key = "your-32-char-hex-key-here"
+# kibana_reporting_key     = "your-32-char-hex-key-here"
+# kibana_security_key      = "your-32-char-hex-key-here"
+
+# --- Video-Creater: PocketBase Admin ---
+pb_admin_password = "1234567890"
