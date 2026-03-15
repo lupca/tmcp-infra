@@ -1,7 +1,42 @@
 #!/bin/bash
 # Script tự động tạo cụm K3s cho TMCP
 
+set -euo pipefail
+
+ensure_multipass() {
+	if command -v multipass >/dev/null 2>&1; then
+		echo "Multipass đã được cài đặt."
+		return
+	fi
+
+	echo "Multipass chưa có. Bắt đầu cài đặt..."
+
+	if [[ "$(uname)" == "Darwin" ]]; then
+		if ! command -v brew >/dev/null 2>&1; then
+			echo "Không tìm thấy Homebrew. Hãy cài Homebrew trước: https://brew.sh"
+			exit 1
+		fi
+
+		brew install --cask multipass
+		# Khởi chạy app để đảm bảo daemon hoạt động.
+		open -a Multipass || true
+	else
+		echo "Script tự cài Multipass hiện chỉ hỗ trợ macOS."
+		echo "Vui lòng cài Multipass thủ công: https://multipass.run/install"
+		exit 1
+	fi
+
+	if ! command -v multipass >/dev/null 2>&1; then
+		echo "Cài Multipass thất bại hoặc chưa sẵn sàng trong PATH."
+		exit 1
+	fi
+
+	echo "Cài Multipass thành công."
+}
+
 VM_NAME="tmcp-server"
+
+ensure_multipass
 
 echo "1. Đang tạo máy ảo Multipass (2 Core, 4GB RAM, 20GB Disk)..."
 multipass launch -n $VM_NAME -c 2 -m 4G -d 20G 24.04
