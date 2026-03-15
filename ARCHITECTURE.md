@@ -407,5 +407,24 @@ kubectl get pods -A
 
 ---
 
+## 🔄 Luồng Khởi Động Lại (Restarting the System)
+
+Do kiến trúc hiện tại, khi bạn tắt máy tính (hoặc khởi động lại VM `tmcp-prod`), **HashiCorp Vault sẽ bị niêm phong (sealed)**.
+
+Để tự động unseal Vault và khởi động lại hệ thống chỉ bằng một lệnh, hãy chạy lệnh sau từ thư mục `tmcp-infra`:
+
+```bash
+terraform apply -var="unseal=$(date +%s)"
+```
+
+Lệnh này sẽ:
+1.  **Kiểm tra và khởi động VM `tmcp-prod`** nếu nó đang tắt.
+2.  **Chạy một script tự động** (`unseal-vault.sh`) để unseal Vault bằng các khóa đã lưu trong `tmcp_vault_keys.txt`.
+3.  **Bỏ qua các bước khác** nếu không có gì thay đổi trong hạ tầng.
+
+Bằng cách này, bạn không cần phải thực hiện các bước thủ công nữa. Hệ thống sẽ tự động trở lại trạng thái hoạt động.
+
+---
+
 > 📝 **Ghi chú:** File này mô tả kiến trúc tại thời điểm viết.
 > Kiến trúc có thể thay đổi khi project phát triển thêm.

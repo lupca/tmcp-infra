@@ -43,10 +43,15 @@ resource "local_file" "cloud_init" {
 # ==========================================
 # 2. KHỞI TẠO MÁY ẢO BỌC THÉP
 # ==========================================
-resource "multipass_instance" "tmcp_server" {
+data "multipass_instance" "existing_tmcp_server" {
+  name = "tmcp-prod"
+}
+
+resource "multipass_instance" "new_tmcp_server" {
+  count          = data.multipass_instance.existing_tmcp_server.name == "" ? 1 : 0
   name           = "tmcp-prod"
   cpus           = 2
-  memory         = "4G"
+  memory         = "6G"
   disk           = "20G"
   image          = "24.04"
   cloudinit_file = local_file.cloud_init.filename
@@ -54,18 +59,22 @@ resource "multipass_instance" "tmcp_server" {
   depends_on = [local_file.cloud_init]
 }
 
+locals {
+  tmcp_server = data.multipass_instance.existing_tmcp_server.name != "" ? data.multipass_instance.existing_tmcp_server : multipass_instance.new_tmcp_server[0]
+}
+
 # ==========================================
 # 3. KẾT NỐI SSH THỰC TẾ & CÀI K3S
 # ==========================================
 resource "null_resource" "setup_k3s" {
-  depends_on = [multipass_instance.tmcp_server, local_file.private_key]
+  depends_on = [multipass_instance.new_tmcp_server, local_file.private_key]
 
   # Thiết lập kết nối SSH
   connection {
     type        = "ssh"
     user        = "ubuntu"
     private_key = tls_private_key.tmcp_ssh.private_key_pem
-    host        = multipass_instance.tmcp_server.ipv4
+    host        = local.tmcp_server.ipv4
     timeout     = "5m" # Chờ tối đa 5 phút để VM boot xong và mở UFW
   }
 
@@ -87,8 +96,8 @@ resource "null_resource" "setup_k3s" {
   provisioner "local-exec" {
     command = <<EOT
       echo "Kéo Kubeconfig về Mac qua giao thức SCP..."
-      scp -o StrictHostKeyChecking=no -i ${local_file.private_key.filename} ubuntu@${multipass_instance.tmcp_server.ipv4}:~/.kube/config ~/.kube/tmcp_config
-      sed -i '' "s/127.0.0.1/${multipass_instance.tmcp_server.ipv4}/g" ~/.kube/tmcp_config
+      scp -o StrictHostKeyChecking=no -i ${local_file.private_key.filename} ubuntu@${local.tmcp_server.ipv4}:~/.kube/config ~/.kube/tmcp_config
+      sed -i '' "s/127.0.0.1/${local.tmcp_server.ipv4}/g" ~/.kube/tmcp_config
       echo "✅ Đã xong! Lệnh cần gõ: export KUBECONFIG=~/.kube/tmcp_config"
     EOT
   }
@@ -152,11 +161,18 @@ resource "null_resource" "trigger_infra" {
 # ==========================================
 # 6. ĐẶC VỤ TỰ ĐỘNG KHỞI TẠO & MỞ KHÓA VAULT
 # ==========================================
-resource "null_resource" "deploy_vault_unsealer" {
+variable "unseal" {
+  type        = string
+  description = "A trigger to force the unsealing of Vault. Pass in the current timestamp to always run."
+  default     = ""
+}
+
+resource "null_resource" "initial_vault_setup" {
   depends_on = [null_resource.trigger_infra]
 
   provisioner "local-exec" {
     command = <<EOT
+      set -e
       export KUBECONFIG=~/.kube/tmcp_config
       KEY_FILE="tmcp_vault_keys.txt"
       
@@ -166,43 +182,43 @@ resource "null_resource" "deploy_vault_unsealer" {
       while ! kubectl get pods -n vault vault-0 >/dev/null 2>&1; do sleep 3; done
       kubectl wait --for=jsonpath='{.status.phase}'=Running pods/vault-0 -n vault --timeout=180s
 
+      # Start port-forward in the background
+      echo "🚀 Starting port-forward to Vault..."
+      kubectl -n vault port-forward svc/vault 8200:8200 >/dev/null 2>&1 &
+      PF_PID=$!
+
+      # Function to automatically kill the port-forward process on exit
+      cleanup() {
+          echo "🧹 Cleaning up port-forward process..."
+          kill $PF_PID || true
+      }
+      trap cleanup EXIT
+      sleep 3
+
       echo "🔍 Kiểm tra trí nhớ của Vault..."
-      INIT_STATUS=$(kubectl exec -n vault vault-0 -- vault status 2>/dev/null | grep "Initialized" | awk '{print $2}')
+      # Use kubectl exec instead of port-forwarded localhost for more reliability
+      INIT_STATUS=$(kubectl exec -n vault vault-0 -- vault status -format=json 2>/dev/null | jq -r '.initialized')
       
       if [ "$INIT_STATUS" = "false" ]; then
         echo "🚨 Vault mới tinh! Đang khởi tạo và đúc bộ chìa khóa mới..."
         kubectl exec -n vault vault-0 -- vault operator init -key-shares=3 -key-threshold=3 > $KEY_FILE
         
-        echo "🔑 Đang dùng chìa khóa vừa đúc để mở khóa..."
-        KEY1=$(grep "Unseal Key 1:" $KEY_FILE | awk '{print $4}')
-        KEY2=$(grep "Unseal Key 2:" $KEY_FILE | awk '{print $4}')
-        KEY3=$(grep "Unseal Key 3:" $KEY_FILE | awk '{print $4}')
-        
-        kubectl exec -n vault vault-0 -- vault operator unseal $KEY1
-        kubectl exec -n vault vault-0 -- vault operator unseal $KEY2
-        kubectl exec -n vault vault-0 -- vault operator unseal $KEY3
-        
         echo "💾 ĐÃ LƯU BỘ CHÌA KHÓA MỚI VÀO: $KEY_FILE"
       else
-        echo "✅ Vault đã được khởi tạo. Đang tìm chìa khóa local..."
-        if [ -f "$KEY_FILE" ]; then
-          echo "🔑 Tìm thấy $KEY_FILE, tiến hành mở khóa..."
-          KEY1=$(grep "Unseal Key 1:" $KEY_FILE | awk '{print $4}')
-          KEY2=$(grep "Unseal Key 2:" $KEY_FILE | awk '{print $4}')
-          KEY3=$(grep "Unseal Key 3:" $KEY_FILE | awk '{print $4}')
-          
-          kubectl exec -n vault vault-0 -- vault operator unseal $KEY1
-          kubectl exec -n vault vault-0 -- vault operator unseal $KEY2
-          kubectl exec -n vault vault-0 -- vault operator unseal $KEY3
-        else
-          echo "❌ LỖI CHÍ MẠNG: Vault bị khóa, nhưng đéo tìm thấy file $KEY_FILE trên Mac!"
-          exit 1
-        fi
+        echo "✅ Vault đã được khởi tạo. Bỏ qua bước init."
       fi
-      
-      echo "⏳ Chờ Vault chuyển sang trạng thái Ready (1/1)..."
-      kubectl wait --for=condition=Ready pods/vault-0 -n vault --timeout=60s
     EOT
+  }
+}
+
+resource "null_resource" "vault_unsealer" {
+  depends_on = [null_resource.initial_vault_setup]
+  triggers = {
+    unseal_trigger = var.unseal
+  }
+
+  provisioner "local-exec" {
+    command = "${path.module}/unseal-vault.sh"
   }
 }
 
@@ -236,7 +252,7 @@ EOF
 }
 
 resource "null_resource" "trigger_workloads" {
-  depends_on = [null_resource.deploy_vault_unsealer, local_file.argocd_root_app]
+  depends_on = [null_resource.vault_unsealer, local_file.argocd_root_app]
 
   provisioner "local-exec" {
     command = <<EOT
