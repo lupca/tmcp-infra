@@ -51,12 +51,7 @@ resource "local_file" "cloud_init" {
 # ==========================================
 # 2. KHỞI TẠO MÁY ẢO BỌC THÉP
 # ==========================================
-data "multipass_instance" "existing_tmcp_server" {
-  name = "tmcp-prod"
-}
-
 resource "multipass_instance" "new_tmcp_server" {
-  count          = data.multipass_instance.existing_tmcp_server.name == "" ? 1 : 0
   name           = "tmcp-prod"
   cpus           = 2
   memory         = "6G"
@@ -68,7 +63,7 @@ resource "multipass_instance" "new_tmcp_server" {
 }
 
 locals {
-  tmcp_server = data.multipass_instance.existing_tmcp_server.name != "" ? data.multipass_instance.existing_tmcp_server : multipass_instance.new_tmcp_server[0]
+  tmcp_server = multipass_instance.new_tmcp_server
 }
 
 # ==========================================
@@ -126,7 +121,7 @@ resource "null_resource" "deploy_argocd" {
       kubectl create namespace argocd || true
       
       # 1. Dùng Server-Side Apply để qua mặt giới hạn 256KB
-      kubectl apply -n argocd --server-side -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
+      kubectl apply -n argocd --server-side -f https://raw.githubusercontent.com/argoproj/argo-cd/v2.11.2/manifests/install.yaml
       
       # 2. Cho API Server 10 giây để nạp bản vẽ và đẻ Deployment
       echo "⏳ Chờ hệ thống nạp bản vẽ chỉ huy..."
